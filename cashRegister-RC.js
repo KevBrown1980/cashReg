@@ -1,83 +1,36 @@
-/*
-price: purchase price
-cash: payment
-cid: cash in drawer (it is a 2D array listing the available currency)
-
-The cashRegister function should always return an object with a status key and a change key.
-
- 1 - Return {status: "INCORRECT_PAYMENT", change: []} if cash is less than the price.
-
- 2 - Return {status: "INSUFFICIENT_FUNDS", change: []} if cid (cash-in-drawer) is less 
-     than the change due or if you cannot return the exact change.
-
- 3 - Return {status: "CLOSED", change: [...]} with cash-in-drawer as the value for the 
-     key change if it is equal to the change due. Include each currency unit in the 
-     drawer, even if its value is zero. (i.e. DO display ["NICKEL", 0])
-
- 4 - Otherwise, return {status: "OPEN", change: [...]}, with the change due in coins and 
-     bills, as the value of the change key. Only include the value of a currency unit if 
-     its value is not zero. (i.e. do NOT display ["NICKEL", 0])
- 
-*/
-
-/* Example: change due is less than the total cid, and exact change can be made */
-cashRegister(19.5, 20, [["PENNY", 1.01],["NICKEL", 2.05],["DIME", 3.1],["QUARTER", 4.25],["ONE", 90],["FIVE", 55],["TEN", 20],["TWENTY", 60],["ONE HUNDRED", 100]])
-
 /* Defining an object for the possible till statuses */
-const tillStatus = {closed: 'CLOSED', insufficientFunds: 'INSUFFICIENT_FUNDS', open: 'OPEN'}
+const REGISTER_STATUS = {incorrectPayment: 'INCORRECT_PAYMENT', closed: 'CLOSED', insufficientFunds: 'INSUFFICIENT_FUNDS', open: 'OPEN'};
 
 function cashRegister (price, cash, cid) {
+    let cashRegister = { status: '', change: cid};
+    const changeNeeded = parseFloat(cash-price).toFixed(2); //limiting the value to 2 decimals to avoid JS errors
+    const changeAvailable = getTotalCashRegisterChange(cid);
     
-    let cashRegister = {status: '', change: cid}
-
-    const changeToCustomer = (cash-price).toFixed(2) //limiting the value to 2 decimals to avoid JS errors
-
-    const changeInTill = totalCashRegisterChange(cid)
-
-    cashRegister.status = retrieveAllCashRegisterStatus(changeToCustomer,changeInTill)
+    cashRegister.status = getTotalCashRegisterStatus(changeNeeded, changeAvailable);
 
     // when there's no sufficient money in the change array
-    if (cashRegister.status === tillStatus.insufficientFunds) {
-    
-        cashRegister.change = []
-    
-        return cashRegister
+    if(cashRegister.status === REGISTER_STATUS.insufficientFunds){
+        cashRegister.change = [];
+
+        return cashRegister;
     }
 
-    if (changeToCustomer > totalCashRegisterChange(cashRegister.change)) {
-        cashRegister.status = tillStatus.insufficientFunds
-        cashRegister.change = []
+    cashRegister.change = getCustomersChange(changeNeeded, cid);
+
+    if (changeNeeded > getTotalCashRegisterChange(cashRegister.change)){
+        cashRegister.status = REGISTER_STATUS.insufficientFunds;
+        cashRegister.change = [];
     }
 
-    cashRegister.change = returnCustomersChange (changeToCustomer, changeInDrawer)
+    if(cashRegister.status === REGISTER_STATUS.closed) {
+        cashRegister.change = [...cid]
+    }
 
+    return cashRegister;
 }
 
-function totalCashRegisterChange (changeInDrawer) {
-    let total = 0
-
-    for (change of changeInDrawer){
-        let changeValue = change[1]
-        total += changeValue
-    }
-    return total.toFixed(2)
-}
-
-function retrieveAllCashRegisterStatus (changeToCustomer, changeInTill) {
-
-    if (changeToCustomer > changeInTill) {
-        return tillStatus.insufficientFunds
-    }
-
-    if (changeToCustomer < changeInTill) {
-        return tillStatus.open
-    }
-
-    return tillStatus.closed
-}
-
-function returnCustomersChange (changeToCustomer, changeInDrawer) {
-    const change = []
+function getCustomersChange(changeNeeded, changeInDrawer) {
+    const change = [];
 
     // Creating a dictionary so JS understands what each currency represent in value
     const currencyDictionary = {
@@ -90,32 +43,96 @@ function returnCustomersChange (changeToCustomer, changeInDrawer) {
         "TEN": 10.00,
         "TWENTY": 20.00,
         "ONE HUNDRED": 100.00
-    }
+    };
 
-    for (i = changeInDrawer.length -1; i >= 0 ; i--) {
-        const coinName = changeInDrawer[i][0]
-        
-        const coinTotal = changeInDrawer[i][1]
-        
-        const coinValue = currencyDictionary[coinName]
-        
-        let coinAmount = (coinTotal / coinValue).toFixed(2)
-        
-        let coinsToReturn = 0 
-        // initilised at zero, it will tell us how many coins are to be returned from each
+    //returning from largest value to smallest value
+    for (let i = changeInDrawer.length - 1; i >= 0; i--) {
 
-        while (changeToCustomer >= coinValue && coinAmount >0) {
-            changeToCustomer -= coinValue
-            changeToCustomer = changeToCustomer.toFixed(2)
-            coinAmount--
-            coinsToReturn++
+        //defining what we are dealing with (penny, nickel, etc)
+        const coinName = changeInDrawer[i][0];
+
+        //total of that particular currency
+        const coinTotal = changeInDrawer[i][1];
+
+        //this is what the dictionary above will help with, JS can understand a PENNY is 0.01 and so forth
+        const coinValue = currencyDictionary[coinName];
+
+        //how much do we have for that currency
+        let coinAmount = (coinTotal / coinValue).toFixed(2);
+
+        // initilised at zero, it will tell us how much of the currency is to be returned from each
+        let coinsToReturn = 0;
+
+        /* for each iteration of the for-loop we will have a while-loop
+            it evidences that while the changeNeeded is greater or equal
+            to the coinValue we are currently on (we have a dolar in change
+            needed but it is a five dolar bill we are going to skip over, it
+            is not going to hit the while loop because it is too great. but
+            if we have a quarter, and while we still have a quarter, go ahead and do that) */
+        while(changeNeeded >= coinValue && coinAmount > 0){
+            changeNeeded -= coinValue;
+            changeNeeded = changeNeeded.toFixed(2);
+            coinAmount--;
+            coinsToReturn++;
         }
 
-        if (coinsToReturn > 0) {
-            change.push([coinName, coinsToReturn * coinValue])
+        //only returning values for currencies that are different from zero
+        if(coinsToReturn > 0) {
+            change.push([coinName, coinsToReturn * coinValue]);
         }
-
     }
-
-    return change
+    return change.reverse();
 }
+
+function getTotalCashRegisterStatus(changeNeeded, changeAvailable) {
+    if(Number(changeNeeded) < 0){
+        return REGISTER_STATUS.incorrectPayment;
+    }
+    
+    if(Number(changeNeeded) > Number(changeAvailable)){
+        return REGISTER_STATUS.insufficientFunds;
+    }
+
+    if(Number(changeNeeded) < Number(changeAvailable)){
+        return REGISTER_STATUS.open;
+    }
+
+    return REGISTER_STATUS.closed
+}
+
+function getTotalCashRegisterChange (changeInDrawer) {
+    let total = 0;
+
+    for (let change of changeInDrawer) {
+        let changeValue = change[1];
+        total += changeValue;
+    }
+
+    return total.toFixed(2)
+}
+
+//case 1:
+console.log(cashRegister(19.5, 18, [
+    ["PENNY", 1.01],
+    ["NICKEL", 2.05],
+    ["DIME", 3.1],
+    ["QUARTER", 4.25],
+    ["ONE", 90],
+    ["FIVE", 55],
+    ["TEN", 20],
+    ["TWENTY", 60],
+    ["ONE HUNDRED", 100]
+  ]));
+
+//case 4a
+console.log(cashRegister(19.5, 20, [
+    ["PENNY", 1.01],
+    ["NICKEL", 2.05],
+    ["DIME", 3.1],
+    ["QUARTER", 4.25],
+    ["ONE", 90],
+    ["FIVE", 55],
+    ["TEN", 20],
+    ["TWENTY", 60],
+    ["ONE HUNDRED", 100]
+]))
