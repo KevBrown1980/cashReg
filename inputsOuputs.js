@@ -53,8 +53,8 @@ function getInputs() {
 
     let onehundreddollarsvalue = document.getElementById("onehundreddollarsvalue").value;
     
-    let onehundreddollar = ["TWENTY", onehundreddollarsvalue];
-    cid.push(twentydollar);
+    let onehundreddollar = ["ONE HUNDRED", onehundreddollarsvalue];
+    cid.push(onehundreddollar);
 
     //calling the cashRegister function
     cashRegister(price, cash, cid)
